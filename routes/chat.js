@@ -1,72 +1,109 @@
 const express = require('express');
 const router = express.Router();
 const { OpenAI } = require('openai');
-const { PineconeClient } = require('@pinecone-database/pinecone');
+const { Pinecone } = require('@pinecone-database/pinecone');
 
 const openai = new OpenAI({
   apiKey: process.env['OPENAI_API_KEY'], // This is the default and can be omitted
 });
 
+const pinecone = new Pinecone({
+  apiKey: process.env.PINECONE_API_KEY,
+});
+
+const indexName = 'crunchdata';
+const indexHost = "crunchdata-8h8qecx.svc.aped-4627-b74a.pinecone.io"; // Replace with actual host if needed  
+const pineconeIndex = pinecone.index(indexName, indexHost);
+
+async function generateAnswer(openai, context, query) {
+  // Construct messages for the chat completion request
+  const messages = [
+    {
+      role: "system",
+      content: "You are an expert software engineer who build all this api and documentation and should answers questions based on provided context and make sure to have the whole response in Markdown format."
+    },
+    {
+      role: "user",
+      content: `Context:\n${context}\n\nQuestion: ${query}`
+    }
+  ];
+
+  const completionResponse = await openai.chat.completions.create({
+    model: "gpt-4o",
+    messages: messages,
+  });
+
+  // Extract and return the answer text
+  console.log(completionResponse.choices?.[0]?.message?.content?.trim())
+  return completionResponse.choices?.[0]?.message?.content?.trim();
+}
+
+async function generateEmbeddingAndQuery(openai, pineconeIndex, query, topK = 5) {
+  try {
+    // Step 1: Generate the embedding for the query
+    const embeddingResponse = await openai.embeddings.create({
+      model: 'text-embedding-ada-002',
+      input: query,
+    });
+
+    const [{ embedding }] = embeddingResponse.data;
+
+    // Step 2: Query Pinecone with the generated embedding
+    const queryResponse = await pineconeIndex.query({
+      vector: embedding,
+      topK: topK,
+      includeMetadata: true,
+      includeValues: false, // set to true if vector values are needed
+    });
+
+    return queryResponse;
+  } catch (error) {
+    console.error(`Error during embedding/query for "${query}":`, error);
+    throw error;
+  }
+}
+
 router.post('/', async (req, res) => {
   try {
     const { query } = req.body;
+    console.log(query)
+
+    // Validate input
     if (!query) {
-      return res.status(400).json({ error: 'No query provided' });
+      return res.status(400).json({ error: 'Query parameter is required.' });
     }
 
-    // 1. Generate embedding for the user query
-    const embeddingResponse = await openai.createEmbedding({
-      model: 'text-embedding-ada-002',
-      input: query
-    });
-    const userEmbedding = embeddingResponse.data.data[0].embedding;
+    // Use the combined function to get Pinecone query response
+    const queryResponse = await generateEmbeddingAndQuery(openai, pineconeIndex, query, 5);
 
-    // 2. Query Pinecone for similar chunks
-    const pinecone = new PineconeClient();
-    await pinecone.init({
-      apiKey: process.env.PINECONE_API_KEY,
-      environment: process.env.PINECONE_ENV
-    });
+    console.log(`Top results for "${query}":`);
 
-    const pineconeIndex = pinecone.Index('crustdata-api-docs');
-    const queryResponse = await pineconeIndex.query({
-      queryRequest: {
-        topK: 5, // retrieve top 5 relevant chunks
-        vector: userEmbedding,
-        includeMetadata: true
-      }
-    });
+    if (queryResponse.matches && queryResponse.matches.length > 0) {
+      // Combine texts from topK matches
+      const context = queryResponse.matches
+        .map(match => match.metadata?.text || "")
+        .join("\n\n");
 
-    // Extract relevant chunks
-    const relevantChunks = queryResponse.matches.map(match => match.metadata.text);
+      // Use generateAnswer function to get a refined response
+      const answer = await generateAnswer(openai, context, query);
+      console.log(`Answer: ${answer}`);
 
-    // 3. Construct the prompt with retrieved context
-    // You can refine the prompt format to ensure best results
-    const contextString = relevantChunks.join('\n\n---\n\n');
-    const systemPrompt = `
-You are a helpful assistant for Crustdata’s API. Use the following context to answer user questions about the API.
-If you are unsure or the context is not relevant, say "I'm not sure" or provide a best guess.
+      // Return the answer to the client
+      return res.status(200).json({ answer });
+    } else {
+      console.log("Answer: No relevant information found.");
+      return res.status(404).json({ error: 'No relevant information found.' });
+    }
 
-Context:
-${contextString}
-    `;
-
-    // 4. Call OpenAI GPT with context + user query
-    const completion = await openai.createChatCompletion({
-      model: 'gpt-3.5-turbo',
-      messages: [
-        { role: 'system', content: systemPrompt },
-        { role: 'user', content: query }
-      ],
-      temperature: 0.7
-    });
-
-    const answer = completion.data.choices[0].message.content;
-    return res.json({ answer });
   } catch (error) {
-    console.error('Error in chat route:', error);
-    return res.status(500).json({ error: 'Server error' });
+    console.error(`Error processing query:`, error);
+    // Return error details to the client
+    return res.status(500).json({
+      error: 'An error occurred while processing your request.',
+      details: error.message || error
+    });
   }
 });
+
 
 module.exports = router;
