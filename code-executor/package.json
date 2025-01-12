@@ -1,0 +1,12 @@
+{
+    "name": "sandbox-executor",
+    "version": "1.0.0",
+    "description": "A Node.js sandbox executor in a Docker container",
+    "main": "sandboxExecutor.js",
+    "scripts": {
+      "start": "node sandboxExecutor.js"
+    },
+    "author": "",
+    "license": "MIT"
+  }
+  
