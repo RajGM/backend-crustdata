@@ -65,7 +65,7 @@ async function generateEmbeddingAndQuery(openai, pineconeIndex, query, topK = 5)
 
 router.post('/', async (req, res) => {
   try {
-    const { query } = req.body;
+    const { query, history } = req.body;
     console.log(query)
 
     // Validate input
@@ -80,15 +80,20 @@ router.post('/', async (req, res) => {
 
     if (queryResponse.matches && queryResponse.matches.length > 0) {
       // Combine texts from topK matches
-      const context = queryResponse.matches
+      const retrievedContext = queryResponse.matches
         .map(match => match.metadata?.text || "")
         .join("\n\n");
 
-      // Use generateAnswer function to get a refined response
-      const answer = await generateAnswer(openai, context, query);
-      console.log(`Answer: ${answer}`);
 
-      // Return the answer to the client
+      // Combine conversation history with retrieved context for richer context
+      const conversationContext = history
+        .map(msg => `${msg.role === 'user' ? 'User' : 'Assistant'}: ${msg.content}`)
+        .join("\n");
+      const fullContext = `${conversationContext}\n\n${retrievedContext}`;
+
+      // Generate answer with LLM using full conversation context
+      const answer = await generateAnswer(openai, fullContext, query);
+      console.log(`Answer: ${answer}`);
       return res.status(200).json({ answer });
     } else {
       console.log("Answer: No relevant information found.");
