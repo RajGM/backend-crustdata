@@ -1,7 +1,7 @@
 // Example Express route for /upload
 const express = require('express');
 const router = express.Router();
-const { testData } = require('@script/ingest-data');
+const { testData } = require('@lib/vectorProcessing/ingest-data');
 
 router.post('/', express.json(), async (req, res) => {
   const { filename, content } = req.body;
