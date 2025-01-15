@@ -1,16 +1,28 @@
 {
   "name": "your-app-name",
   "version": "1.0.0",
-  "main": "index.js", 
+  "main": "index.js",
   "scripts": {
-    "start": "node index.js", 
+    "start": "node index.js",
     "dev": "nodemon index.js"
+  },
+  "_moduleAliases": {
+    "@root": ".",
+    "@lib": "lib",
+    "@script": "script",
+    "@upload": "upload",
+    "@routes": "routes",
+    "@slack-app": "slack-app",
+    "@code-executor": "code-executor"
   },
   "dependencies": {
     "@pinecone-database/pinecone": "^4.0.0",
     "cors": "^2.8.5",
     "dotenv": "^16.4.7",
     "express": "^4.21.2",
+    "firebase-admin": "^13.0.2",
+    "module-alias": "^2.2.3",
+    "multer": "^1.4.5-lts.1",
     "openai": "^4.77.3"
   },
   "devDependencies": {

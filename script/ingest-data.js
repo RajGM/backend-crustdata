@@ -108,4 +108,10 @@ async function ingestData() {
   console.log('Ingestion complete!');
 }
 
-ingestData().catch(console.error);
+//ingestData().catch(console.error);
+
+function testData(){
+  console.log('test data');
+}
+
+exports.testData = testData;
