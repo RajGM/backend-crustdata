@@ -2,22 +2,11 @@ const fs = require('fs');
 const path = require('path');
 require('dotenv').config();
 
-const { OpenAI } = require('openai');
-const { Pinecone } = require('@pinecone-database/pinecone');
 const vm = require('vm');
 
-// Initialize OpenAI and Pinecone clients
-const openai = new OpenAI({
-    apiKey: process.env.OPENAI_API_KEY,
-});
-
-const pinecone = new Pinecone({
-    apiKey: process.env.PINECONE_API_KEY,
-});
-
-const indexName = 'crunchdata';
-const indexHost = "crunchdata-8h8qecx.svc.aped-4627-b74a.pinecone.io"; // Replace with actual host if needed
 const pineconeIndex = pinecone.index(indexName, indexHost);
+
+const {openai, pineconeIndex} = require('@lib/helperFunction.js')
 
 // Define the user query
 const query = "How do I search for people given their current title, current company and location? make a sample request with appropriate parameters to test and show the results";

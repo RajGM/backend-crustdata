@@ -1,6 +1,6 @@
 const express = require('express');
 const router = express.Router();
-const { processQuery } = require('@lib/vectorProcessing/query.js');
+const { processQuery } = require('@lib/query.js');
 
 router.post('/', async (req, res) => {
   try {
