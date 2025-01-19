@@ -23,23 +23,31 @@ const pineconeIndex = pinecone.index(indexName, indexHost);
 const query = "How do I search for people given their current title, current company and location? make a sample request with appropriate parameters to test and show the results";
 
 // Function to decide whether we need to generate and execute a function based on the query
-async function shouldGenerateFunction(query) {
-    // Define a prompt that instructs the LLM to return "true" or "false"
+async function shouldGenerateFunction(conversationHistory, latestQuery) {
+    // Build the conversation context
+    const historyMessages = conversationHistory.map(msg => {
+        return { role: msg.role, content: msg.content };
+    });
+
     const prompt = `
-  You are an expert software engineer. Based on the following user query, determine if a dynamic function needs to be generated and executed to answer it. 
-  Return only "true" or "false" without any additional text.
-  
-  User Query: "${query}"
-  `;
+You are an expert software engineer. Based on the entire conversation history and the following user query, determine if a dynamic function needs to be generated and executed to answer it.
+Return only "true" or "false" without any additional text.
+
+User Query: "${latestQuery}"
+    `;
 
     try {
+        // Construct the complete set of messages for the API call
+        const messages = [
+            { role: "system", content: "You answer yes/no questions with true or false." },
+            ...historyMessages,
+            { role: "user", content: prompt }
+        ];
+
         // Call OpenAI's API with the appropriate model and prompt
         const response = await openai.chat.completions.create({
             model: "gpt-4o", // or another suitable model
-            messages: [
-                { role: "system", content: "You answer yes/no questions with true or false." },
-                { role: "user", content: prompt }
-            ],
+            messages: messages,
             temperature: 0, // low randomness for deterministic output
         });
 
@@ -48,35 +56,35 @@ async function shouldGenerateFunction(query) {
         return answer === "true";
     } catch (error) {
         console.error("Error determining if function should be generated:", error);
-        // Fallback to default heuristic or false in case of API failure
+        // Fallback to a default decision
         return false;
     }
 }
 
 async function generateEmbeddingAndQuery(openai, pineconeIndex, query, topK = 5) {
     try {
-      // Step 1: Generate the embedding for the query
-      const embeddingResponse = await openai.embeddings.create({
-        model: 'text-embedding-ada-002',
-        input: query,
-      });
-  
-      const [{ embedding }] = embeddingResponse.data;
-  
-      // Step 2: Query Pinecone with the generated embedding
-      const queryResponse = await pineconeIndex.query({
-        vector: embedding,
-        topK: topK,
-        includeMetadata: true,
-        includeValues: false, // set to true if vector values are needed
-      });
-  
-      return queryResponse;
+        // Step 1: Generate the embedding for the query
+        const embeddingResponse = await openai.embeddings.create({
+            model: 'text-embedding-ada-002',
+            input: query,
+        });
+
+        const [{ embedding }] = embeddingResponse.data;
+
+        // Step 2: Query Pinecone with the generated embedding
+        const queryResponse = await pineconeIndex.query({
+            vector: embedding,
+            topK: topK,
+            includeMetadata: true,
+            includeValues: false, // set to true if vector values are needed
+        });
+
+        return queryResponse;
     } catch (error) {
-      console.error(`Error during embedding/query for "${query}":`, error);
-      throw error;
+        console.error(`Error during embedding/query for "${query}":`, error);
+        throw error;
     }
-  }
+}
 
 // Function to generate an answer using OpenAI's chat completion
 async function generateAnswer(context, query) {
@@ -143,8 +151,56 @@ Example response:
     }
 }
 
+async function generateEmbeddingAndQueryForConversation(openai, pineconeIndex, latestQuery, topK = 5, conversationHistory) {
+    try {
+        // Assume conversationHistory is an array of objects like { role: "user"/"assistant", content: "..." }
+
+        // Step 1: Format the conversation history into a string
+        const formattedHistory = conversationHistory
+            .map(msg => `${msg.role}: ${msg.content}`)
+            .join('\n');
+
+        // Step 2: Combine the conversation history with the latest query
+        // Since the latestQuery is not in history, we append it separately
+        const combinedInput = formattedHistory 
+            ? `${formattedHistory}\nUser: ${latestQuery}`
+            : `User: ${latestQuery}`;
+
+        // Step 3: Generate the embedding for the combined input
+        const embeddingResponse = await openai.embeddings.create({
+            model: 'text-embedding-ada-002',
+            input: combinedInput,
+        });
+
+        // Extract the embedding from the response
+        const [{ embedding }] = embeddingResponse.data;
+
+        // Step 4: Query Pinecone with the generated embedding
+        const queryResponse = await pineconeIndex.query({
+            vector: embedding,
+            topK: topK,
+            includeMetadata: true,
+            includeValues: false, // set to true if vector values are needed
+        });
+
+        return queryResponse;
+    } catch (error) {
+        console.error(`Error during embedding/query for conversation + "${latestQuery}":`, error);
+        throw error;
+    }
+}
+
+module.exports = {
+    shouldGenerateFunction,
+    generateEmbeddingAndQuery,
+    generateAnswer,
+    generateFunctionAndParams,
+    generateEmbeddingAndQueryForConversation
+}
+
 // Main execution flow
-(async () => {
+//(
+async () => {
     // Determine if function generation is needed using LLM-based decision (from previous instructions)
     const decision = await shouldGenerateFunction(query);
 
@@ -155,13 +211,13 @@ Example response:
         // Generate function code and parameters dynamically
         const queryResponse = await generateEmbeddingAndQuery(openai, pineconeIndex, query, 5);
         const generationResult = await generateFunctionAndParams(query + " " + queryResponse, context);
-        
+
         if (!generationResult) {
             console.error("Failed to generate function and parameters.");
             return;
         }
 
-        const { code: generatedFunctionCode, params:params, functionName:functionName } = generationResult;
+        const { code: generatedFunctionCode, params: params, functionName: functionName } = generationResult;
 
         // Save the generated code to a file
         const functionFilePath = path.join(__dirname, 'generatedFunction.js');
@@ -200,5 +256,4 @@ Example response:
         const answer = await generateAnswer(context, query);
         console.log("Direct Answer:", answer);
     }
-})();
-
+}//)//();
