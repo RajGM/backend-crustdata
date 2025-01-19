@@ -6,7 +6,7 @@ const chatRoute = require('./routes/chat');
 const uploadRouter = require('./routes/upload');
 const cron = require('node-cron');  // Import node-cron
 
-const { app: slackApp, fetchNewMessagesAndThreads } = require('@lib/slackApp');
+const { app: slackApp, fetchNewMessagesAndThreads, listAllChannelsAndUsers } = require('@lib/slackApp');
 const { getLastProcessedTS, updateLastProcessedTS } = require('@lib/firebaseUtil');
 
 const CHANNEL_ID = 'C0883F6369L';
@@ -31,12 +31,12 @@ app.listen(PORT, async () => {
     console.log(error.data.response_metadata);
   }
 
-  console.log(`Express server listening on port ${PORT}`);
-  const lastStoredTS = await getLastProcessedTS();
-  const {lastProcessedTS, threadsData} = await fetchNewMessagesAndThreads('1736883900', CHANNEL_ID);
-  formatAndLogConversations(threadsData);
-  //format this in appropriate format threadsData and upsert to pinecone
-  await updateLastProcessedTS(lastProcessedTS);
+  // console.log(`Express server listening on port ${PORT}`);
+  // const lastStoredTS = await getLastProcessedTS();
+  // const {lastProcessedTS, threadsData} = await fetchNewMessagesAndThreads('1736883900', CHANNEL_ID);
+  // formatAndLogConversations(threadsData);
+  // //format this in appropriate format threadsData and upsert to pinecone
+  // await updateLastProcessedTS(lastProcessedTS);
 
   // Schedule cron job to run every second for testing
   // cron.schedule('*/5 * * * * *', async () => {
