@@ -6,7 +6,7 @@ const chatRoute = require('./routes/chat');
 const uploadRouter = require('./routes/upload');
 const cron = require('node-cron');  // Import node-cron
 
-const { app: slackApp, fetchNewMessagesAndThreads, listAllChannelsAndUsers } = require('@lib/slackApp');
+const { app: slackApp, fetchNewMessagesAndThreads } = require('@lib/slackApp');
 const { getLastProcessedTS, updateLastProcessedTS } = require('@lib/firebaseUtil');
 const { processThreads } = require('@lib/query.js');
 
