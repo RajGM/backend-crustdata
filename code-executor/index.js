@@ -4,8 +4,6 @@ require('dotenv').config();
 
 const vm = require('vm');
 
-const pineconeIndex = pinecone.index(indexName, indexHost);
-
 const {openai, pineconeIndex} = require('@lib/helperFunction.js')
 
 // Define the user query
