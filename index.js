@@ -34,21 +34,21 @@ app.listen(PORT, async () => {
 
   console.log(`Express server listening on port ${PORT}`);
 
-  // Schedule cron job to run every second for testing
-  // cron.schedule('*/5 * * * * *', async () => {
-  //   console.log('Cron job triggered: Fetching new messages and threads...');
-  //   try {
-    
-  // const lastStoredTS = await getLastProcessedTS();
-  // const {lastProcessedTS, threadsData} = await fetchNewMessagesAndThreads(lastStoredTS, CHANNEL_ID);
-  // await processThreads(threadsData, CHANNEL_ID);
-  // await updateLastProcessedTS(lastProcessedTS);
+  // Schedule cron job to run every 12 hours
+  cron.schedule('0 */12 * * *', async () => {
+    console.log('Cron job triggered: Fetching new messages and threads...');
+    try {
+      const lastStoredTS = await getLastProcessedTS();
+      const { lastProcessedTS, threadsData } = await fetchNewMessagesAndThreads(lastStoredTS, CHANNEL_ID);
+      await processThreads(threadsData, CHANNEL_ID);
+      await updateLastProcessedTS(lastProcessedTS);
 
-  //     //console.log('Successfully fetched new messages and threads.');
-  //   } catch (err) {
-  //     console.error('Error during cron job execution:', err);
-  //   }
-  // });
+      console.log('Successfully fetched new messages and threads.');
+    } catch (err) {
+      console.error('Error during cron job execution:', err);
+    }
+  });
+
 
   console.log('Cron job scheduled to run every second.');
 });
