@@ -4,7 +4,7 @@ require('dotenv').config();
 
 const vm = require('vm');
 
-const {openai, pineconeIndex} = require('@lib/helperFunction.js')
+const { openai, pineconeIndex } = require('@lib/helperFunction.js')
 
 // Define the user query
 const query = "How do I search for people given their current title, current company and location? make a sample request with appropriate parameters to test and show the results";
@@ -12,16 +12,16 @@ const query = "How do I search for people given their current title, current com
 // Function to decide whether we need to generate and execute a function based on the query
 async function shouldGenerateFunction(conversationHistory, latestQuery) {
     // Build the conversation context
-    const historyMessages = conversationHistory.map(msg => {
+    const historyMessages = conversationHistory? conversationHistory.map(msg => {
         return { role: msg.role, content: msg.content };
-    });
+    }):[]; 
+    
+    const prompt = `You are an expert software engineer tasked with determining whether to generate and execute a dynamic function based on the user's latest query.
+Consider the conversation history and the query carefully.
+Respond with "true" if a function needs to be generated and executed, or "false" if it does not. Respond with only "true" or "false"—no additional text.
 
-    const prompt = `
-You are an expert software engineer. Based on the entire conversation history and the following user query, determine if a dynamic function needs to be generated and executed to answer it.
-Return only "true" or "false" without any additional text.
-
-User Query: "${latestQuery}"
-    `;
+Latest User Query: "${latestQuery}"
+`;
 
     try {
         // Construct the complete set of messages for the API call
@@ -35,11 +35,12 @@ User Query: "${latestQuery}"
         const response = await openai.chat.completions.create({
             model: "gpt-4o", // or another suitable model
             messages: messages,
-            temperature: 0, // low randomness for deterministic output
+            temperature: 0.1, // low randomness for deterministic output
         });
 
         // Extract and clean the response
         const answer = response.choices?.[0]?.message?.content?.trim().toLowerCase();
+        console.log("ANSWER IN PROMPT:", answer);
         return answer === "true";
     } catch (error) {
         console.error("Error determining if function should be generated:", error);
@@ -82,15 +83,17 @@ async function generateAnswer(context, query) {
         },
         {
             role: "user",
-            content: `Context:\n${context}\n\nQuestion: ${query}`
+            content: `Context:\n${context}\n\nQuestion: ${query} and reply in JSON format always`
         }
     ];
 
     const completionResponse = await openai.chat.completions.create({
         model: "gpt-4o",
         messages: messages,
+        response_format: { type: "json_object" }
     });
 
+    console.log("GENERATE ANSWER:",completionResponse.choices?.[0]?.message?.content);
     return completionResponse.choices?.[0]?.message?.content?.trim();
 }
 
@@ -109,7 +112,7 @@ Respond with a JSON object containing three keys:
 - "params": An array of parameters to be passed to the function.
 - "functionName": The name of the generated function.
 
-Example response:
+Example response JSON:
 {
   "code": "const { URLSearchParams } = require('url');\\nfunction generatedFunction(a, b) { return a + b; }",
   "params": [5, 3],
@@ -118,16 +121,15 @@ Example response:
     `;
 
     const response = await openai.chat.completions.create({
-        model: "gpt-4", // update model name as needed
+        model: "gpt-4o", 
         messages: [
             { role: "system", content: "You answer requests with structured JSON responses." },
             { role: "user", content: prompt }
         ],
         temperature: 0, // deterministic output
-        max_tokens: 300
+        response_format: { type: "json_object" }
     });
 
-    // Parse JSON from the LLM's response
     try {
         const content = response.choices?.[0]?.message?.content?.trim();
         const parsed = JSON.parse(content);
@@ -149,7 +151,7 @@ async function generateEmbeddingAndQueryForConversation(openai, pineconeIndex, l
 
         // Step 2: Combine the conversation history with the latest query
         // Since the latestQuery is not in history, we append it separately
-        const combinedInput = formattedHistory 
+        const combinedInput = formattedHistory
             ? `${formattedHistory}\nUser: ${latestQuery}`
             : `User: ${latestQuery}`;
 
@@ -184,63 +186,3 @@ module.exports = {
     generateFunctionAndParams,
     generateEmbeddingAndQueryForConversation
 }
-
-// Main execution flow
-//(
-async () => {
-    // Determine if function generation is needed using LLM-based decision (from previous instructions)
-    const decision = await shouldGenerateFunction(query);
-
-    if (decision) {
-        // Retrieve context, for example, documentation or Pinecone context
-        const context = "How do I search for people given their current title, current company and location? Also make a mock request to the endpoint";
-
-        // Generate function code and parameters dynamically
-        const queryResponse = await generateEmbeddingAndQuery(openai, pineconeIndex, query, 5);
-        const generationResult = await generateFunctionAndParams(query + " " + queryResponse, context);
-
-        if (!generationResult) {
-            console.error("Failed to generate function and parameters.");
-            return;
-        }
-
-        const { code: generatedFunctionCode, params: params, functionName: functionName } = generationResult;
-
-        // Save the generated code to a file
-        const functionFilePath = path.join(__dirname, 'generatedFunction.js');
-        fs.writeFileSync(functionFilePath, generatedFunctionCode);
-
-        // Read and execute the generated function as before
-        const readGeneratedFunctionCode = fs.readFileSync(functionFilePath, 'utf8');
-        const sandbox = { console, require };
-        vm.createContext(sandbox);
-
-        try {
-            vm.runInContext(readGeneratedFunctionCode, sandbox, { timeout: 1000 });
-            const invocationCode = `${functionName}(${params.map(p => JSON.stringify(p)).join(', ')})`;
-            const result = vm.runInContext(invocationCode, sandbox, { timeout: 1000 });
-            console.log("Function Execution Result:", result);
-
-            // Use the result in further context or responses as needed
-            const answerContext = `Function executed with result: ${result}`;
-            const answer = await generateAnswer(answerContext, query);
-            console.log("Answer with function context:", answer);
-
-        } catch (error) {
-            console.error('Error during execution:', error);
-        } finally {
-            try {
-                fs.unlinkSync(functionFilePath);
-                console.log('Cleaned up generated function file.');
-            } catch (unlinkError) {
-                console.error('Error removing generated function file:', unlinkError);
-            }
-        }
-
-    } else {
-        // For queries not requiring function execution, directly generate an answer
-        const context = "";  // Provide relevant context if needed
-        const answer = await generateAnswer(context, query);
-        console.log("Direct Answer:", answer);
-    }
-}//)//();

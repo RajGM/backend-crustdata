@@ -21,7 +21,6 @@ router.post('/', express.json(), async (req, res) => {
 // New PUT route for updates
 router.put('/', express.json(), async (req, res) => {
   const { filename, fileUrl } = req.body;
-  console.log(`Updating File: ${filename} URL: ${fileUrl}`);
 
   try {
     const oldIDs = await fetchFileVectorIdsFromFirebase(filename);

@@ -5,16 +5,12 @@ const { processQuery } = require('@lib/query.js');
 router.post('/', async (req, res) => {
   try {
     const { query, history } = req.body;
-
-    console.log(history)
-
     // Validate input
     if (!query) {
       return res.status(400).json({ error: 'Query parameter is required.' });
     }
 
     const answer = await processQuery(history, query);
-    console.log("ANSWER:", answer);
     return res.status(200).json({ answer });
 
   } catch (error) {

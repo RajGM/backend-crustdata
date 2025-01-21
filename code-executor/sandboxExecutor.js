@@ -23,7 +23,6 @@ try {
   const result = vm.runInContext(invocationCode, sandbox, { timeout: 1000 });
 
   // 6. Process and output the result
-  console.log('Function executed successfully. Result:', result);
 } catch (error) {
   console.error('An error occurred:', error);
 }
