@@ -13,9 +13,8 @@ RUN npm install --production
 # Copy the rest of the application's source code
 COPY . .
 
-# Expose the port the app runs on (adjust if necessary)
-EXPOSE 3000
+# Expose both ports (3000 for Express, 3003 for Slack)
+EXPOSE 3000 3003
 
-# Define the command to run your app using npm. 
-# Adjust the start script if your entry point differs.
+# Define the command to run your app using npm
 CMD ["npm", "start"]
