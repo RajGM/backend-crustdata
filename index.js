@@ -20,7 +20,7 @@ app.use(express.json());
 app.use('/api/chat', chatRoute);
 app.use('/upload', uploadRouter);
 
-const PORT = process.env.PORT || 3001;
+const PORT = process.env.PORT || 3000;
 
 app.listen(PORT, async () => {
 
